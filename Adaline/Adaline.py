@@ -1,5 +1,7 @@
+# coding=utf-8
+
 import random
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 
 class adalineAlgorithm(object):

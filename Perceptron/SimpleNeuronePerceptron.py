@@ -1,3 +1,4 @@
+# coding=utf-8
 # perceptron2.py
 # aplicativo para analise de portas OR
 
@@ -29,6 +30,7 @@ x = [[x_0,0,0],
 
 # quantos itens tem o vetor x (4)
 tamanho_x = len(x)
+
 
 # quantos itens estão em cada posicao do vetor x
 qtde_itens_x = len(x[0])
