@@ -58,14 +58,14 @@ class adalineAlgorithm(object):
                 totalError += pow((expected[i] - u), 2)
                 uv.append(u)
                 # Alternative method to Adjust weights -- Less code, but the convergence is slower
-                self.weights = self.weights + ((self.learningRate * (expected[i] - u)) * trainingData[i])
+                # self.weights = self.weights + ((self.learningRate * (expected[i] - u)) * trainingData[i])
 
             # Orthodox method to Adjust weights -- More code, but the convergence is faster
-            # deltaE = (expected[0] - uv[0]) * trainingData[0]
-            # for j in range(1, len(trainingData)):
-            #     deltaE += (expected[j] - uv[j]) * trainingData[j]
-            #
-            # self.weights = self.weights + (self.learningRate * deltaE )
+            deltaE = (expected[0] - uv[0]) * trainingData[0]
+            for j in range(1, len(trainingData)):
+                deltaE += (expected[j] - uv[j]) * trainingData[j]
+
+            self.weights = self.weights + (self.learningRate * deltaE )
             # End Orthodox method
 
             # Stopping criterion -- the difference of this value to the value calculated in last
@@ -79,13 +79,13 @@ class adalineAlgorithm(object):
 
 
 # Configuring and executing
-bias = -0.8649
+bias = 0
 trainingData = [ np.array([-1, 0, 0]),
                  np.array([-1, 0, 1]),
                  np.array([-1, 1, 0]),
                  np.array([-1, 1, 1]) ]
 expected = np.array([0, 1, 1, 1])
-w_0 = -0.8649
-weights = np.array([-1, 0.3192, 0.3129])
-adaline = adalineAlgorithm(weights = weights, bias = bias)
+
+weights = np.array([-1, 1, 1])
+adaline = adalineAlgorithm(weights = weights, bias = bias, learningRate=0.2)
 adaline.train(trainingData, expected)
