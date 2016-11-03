@@ -1,121 +1,87 @@
 # coding=utf-8
-# perceptron2.py
-# aplicativo para analise de portas OR
-
 import numpy as np
 import matplotlib.pyplot as plot
 
-# falso = 0, verdadeiro = 1
 
-# [0,0] | resposta = 0
-# [0,1] | resposta = 1
-# [1,0] | resposta = 1
-# [1,1] | resposta = 1
+def degrau(u):
+    if u < 0:
+        return 0
+    else:
+        return 1
 
-def calcStraight(weight, axis='x'):
-    x = np.arange(-2, 3, 1)
-    y = [-(weight[1] / weight[2]) * i -(weight[0] / weight[1]) for i in x]
 
+"""
+Calcula a reta
+
+Para cada ponto desejado no gráfico (i) é calculado onde a reta passaria
+
+y = ax+b
+onde b = -peso[0]/peso[1]
+onde ax = bias/peso[1]
+
+Poderia ter feito o calculo apenas duas vezes, 1 no ponto inicial desejado e outra no ponto final.
+"""
+def limiar2D(pesos, bias, axis):
+    x = np.arange(-2, 3, 1) #vai de -2 a 2 no eixo x e para cada valor (-2,-1,,0,1 e 2) é calculado o seu valor em y
+    y = [-(pesos[0] / pesos[1]) * i - (bias / pesos[1]) for i in x]
     return y if axis == 'y' else x
 
-# numero maximo de interacoes
-max_int = 20
 
-# threshold (limiar)
-threshold = 0
+"""
+Calcula o potencial de ativação da entrada
+Se o potencial for < 0, retorna 0, caso contrário retorna 1
+"""
+def perceptron(entradas, pesos, bias, limiar):
+    if len(entradas) != len(pesos):
+        return False
 
-# peso 0 bias
-w_0 = -0.8649
+    potencial = bias - limiar + np.sum(entradas * pesos)
+    return degrau(potencial)
 
-# entrada 0 bias
-x_0 = 1
+"""
+Atualiza o  vetor de peso
+"""
+def calcularPesos(entradas, pesos, erro, taxa):
+    if len(entradas) != len(pesos):
+        return False
 
-# entradas treino
-x = [[x_0,0,0],
-     [x_0,0,1],
-     [x_0,1,0],
-     [x_0,1,1]]
-
-# respostas desejadas
-d = [0,1,1,1]
-
-# quantos itens tem o vetor x (4)
-tamanho_x = len(x)
-
-# quantos itens estão em cada posicao do vetor x
-qtde_itens_x = len(x[0])
-
-# pesos (sinapses)
-w = [w_0, 0.3192, 0.3129]
-
-# quantos itens tem o vetor w (3)
-tamanho_w = len(w)
+    return pesos + taxa * erro * entradas
 
 
-# taxa de aprendizado (n)
-taxa_aprendizado = 0.5
+def treinar(entradas, desejados, erroAceitavel, maxTentativas, pesosIniciais, bias, taxa):
+    pesos = pesosIniciais
+    print("Pesos iniciais:", pesos)
 
-#saida do peceptron
-y = 0
+    plot.figure(1)
 
-# resposta = acerto ou falha
-resposta = ""
+    erroTotal = 1
+    tentativa = 1
+    while erroTotal > erroAceitavel and tentativa <= maxTentativas:
+        erroTotal = 0
+        print("\nÉpoca ", tentativa, ":")
+        plot.subplot(220 + tentativa)
+        plot.axis([-2, 2, -2, 2])
+        plot.plot(limiar2D(pesos, bias, 'x'), limiar2D(pesos, bias, 'y'))
+        for i, entrada in enumerate(entradas):
+            plot.plot(entrada[0], entrada[1], marker='o')
+            plot.title("Época " + str(tentativa))
+            obtido = perceptron(entrada, pesos, bias, 0)
+            print("Entradas:", entrada, "| Obtido:", obtido, "| Desejado:", desejados[i])
+            erro = desejados[i] - obtido
+            erroTotal += abs(erro)
+            if (abs(erro) > erroAceitavel):
+                pesos = calcularPesos(entrada, pesos, erro, taxa)
+                print("Alterando pesos para:", pesos)
+        tentativa += 1
+    print("\nPesos finais:", pesos)
+    plot.show()
 
-# soma (funcao agregadora
-u = 0
 
-#erros encontrados
-e = 0
-
-print("Treinando")
-
-# inicio do algoritmo
-for k in range(1,max_int):
-    print("INTERACAO "+str(k)+"-------------------------")
-    plot.subplot(220 + k)
-    plot.axis([-2, 2, -2, 2])
-
-    acertos = 0
-    e = 0
-    plot.plot(calcStraight(w, 'x'), calcStraight(w, 'y'))
-    plot.title("Epoca" + str(k))
-    for t in range(0,tamanho_x):
-        plot.plot(x[t][1], x[t][2], "o")
-        u = 0
-
-        # para calcular a saida do perceptron, cada entrada de x eh multiplicada
-        # pelo seu peso w correspondente
-        for j in range(0,qtde_itens_x):
-            u += x[t][j] * w[j]
-
-        # funcao de saida
-        if u > 0:
-            y = 1
-        else:
-            y = 0
-
-        # atualiza os pesos caso a saida nao corresponda ao valor esperado
-        if y == d[t]:
-            resposta = "acerto"
-            acertos += 1
-            e = 0
-        else:
-            resposta = "erro"
-            # calculando o erro
-            e = d[t] - y
-            # atualizando os pesos
-            for j in range(0, tamanho_w):
-                w[j] = w[j] + (taxa_aprendizado * e * x[t][j])
-
-        print(resposta + " >>> u = " + str(u) + ", y = " + str(y) + ", e = " + str(e))
-
-    if acertos == tamanho_x:
-        print("\nFuncionalidade aprendida com " + str(k) + " interacoes")
-        print("\nPesos encontrados =============== ")
-        for j in range(0, tamanho_w):
-            print(w[j])
-        break;
-    print("")
-
-plot.show();
-print("Finalizado")
+entradas = np.array([
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1]
+])
+desejados = np.array([0, 1, 1, 1])
+treinar(entradas, desejados, 0.00001, 10, [0.4590, 0.2110], -0.5130, 0.5)
