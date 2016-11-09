@@ -1,207 +1,247 @@
-# coding=utf-8
-import numpy as np
+import matplotlib.pyplot as plot
+import random
+import math
 
-from PMC import ManipulandoGraficos
+#
+# Shorthand:
+#   "pd_" as a variable prefix means "partial derivative"
+#   "d_" as a variable prefix means "derivative"
+#   "_wrt_" is shorthand for "with respect to"
+#   "w_ho" and "w_ih" are the index of weights from hidden to output layer neurons and input to hidden layer neurons respectively
+#
+# Comment references:
+#
+# [1] Wikipedia article on Backpropagation
+#   http://en.wikipedia.org/wiki/Backpropagation#Finding_the_derivative_of_the_error
+# [2] Neural Networks for Machine Learning course on Coursera by Geoffrey Hinton
+#   https://class.coursera.org/neuralnets-2012-001/lecture/39
+# [3] The Back Propagation Algorithm
+#   https://www4.rgu.ac.uk/files/chapter3%20-%20bp.pdf
 
-class Backpropagation:
-    def __init__(self, doubleVetorEntradas, doubleVetorDePesosPrimeiraCamada, doubleVetorDePesosSegundaCamada, doubleVetorSaida,
-    doubleBiasPrimeiraCamada, doubleBiasSegundaCamada, doubleTaxaDeAprendizagem, doublePrecisaoRequerida, boolMostrarGraficos,
-    intNumerosDeIteracao):
-        self.doubleVetorEntradas = np.array(doubleVetorEntradas)
-        self.doubleVetorDePesosPrimeiraCamada = np.array(doubleVetorDePesosPrimeiraCamada)
-        self.doubleVetorPesosW1eW2 = np.array([doubleVetorDePesosPrimeiraCamada[0], doubleVetorDePesosPrimeiraCamada[1]])
-        self.doubleVetorPesosW3eW4 = np.array([doubleVetorDePesosPrimeiraCamada[2], doubleVetorDePesosPrimeiraCamada[3]])
-        self.doubleVetorDePesosSegundaCamada = np.array(doubleVetorDePesosSegundaCamada)
-        self.doubleVetorSaida = np.array(doubleVetorSaida)
-        self.doubleBiasPrimeiraCamada = np.double(doubleBiasPrimeiraCamada)
-        self.doubleBiasSegundaCamada = np.double(doubleBiasSegundaCamada)
-        self.doubleTaxaDeAprendizagem = np.double(doubleTaxaDeAprendizagem)
-        self.doublePrecisaoRequerida = np.double(doublePrecisaoRequerida)
-        self.boolMostrarGraficos = boolMostrarGraficos
-        self.intNumerosDeIteracao = intNumerosDeIteracao
-    #Faz o sum(entrada*peso) + bias
-    def calculaNet(self,vetorEntrada, vetorPeso, bias):
-        return np.sum(vetorEntrada * vetorPeso) + bias
-        #faz 1/(1+e^{-NET})
-    def calculaFuncaoSinoide_Gh(self, doubleNET):
-        return 1/(1 + np.exp(-doubleNET))
+class NeuralNetwork:
+    LEARNING_RATE = 0.5
 
-    def neuronio(self, doubleVetorEntrada, doubleVetorPesosCamada, doubleBiasCamada):
-        doubleVetorPesosW1eW2 = np.array([doubleVetorPesosCamada[0], doubleVetorPesosCamada[1]])
-        doubleVetorPesosW3eW4 = np.array([doubleVetorPesosCamada[2], doubleVetorPesosCamada[3]])
+    def __init__(self, num_inputs, num_hidden, num_outputs, hidden_layer_weights = None, hidden_layer_bias = None, output_layer_weights = None, output_layer_bias = None):
+        self.num_inputs = num_inputs
 
-        ############## CALCULANDO OS NET's da CAMADA ##############
-        doubleNETh1 = self.calculaNet(doubleVetorEntrada, doubleVetorPesosW1eW2, doubleBiasCamada)
-        doubleNETh2 = self.calculaNet(doubleVetorEntrada, doubleVetorPesosW3eW4, doubleBiasCamada)
+        self.hidden_layer = NeuronLayer(num_hidden, hidden_layer_bias)
+        self.output_layer = NeuronLayer(num_outputs, output_layer_bias)
 
-        ############### CALCULANDO OS Gh1 e Gh2 da CAMADA ###############
-        doubleGh1 = np.double(self.calculaFuncaoSinoide_Gh(doubleNETh1))
-        doubleGh2 = np.double(self.calculaFuncaoSinoide_Gh(doubleNETh2))
-        return doubleNETh1, doubleNETh2, doubleGh1, doubleGh2
+        self.init_weights_from_inputs_to_hidden_layer_neurons(hidden_layer_weights)
+        self.init_weights_from_hidden_layer_neurons_to_output_layer_neurons(output_layer_weights)
 
-    def calculandoErroTotal(self, doubleG1, doubleG2, doubleVetorSaida):
-        #Calculando Erro 1
-        print ("doubleVetorSaida[0]", doubleVetorSaida[0])
-        doubleErro1 = np.double(1.0/2.0 * ((doubleG1 - doubleVetorSaida[0]) * (doubleG1 - doubleVetorSaida[0])))
-        doubleErro2 = np.double(1.0/2.0 * ((doubleG2 - doubleVetorSaida[1]) * (doubleG2 - doubleVetorSaida[1])))
-        print ("doubleErro1:", doubleErro1, " doubleErro2: ", doubleErro2)
-        return doubleErro1 + doubleErro2
+    def init_weights_from_inputs_to_hidden_layer_neurons(self, hidden_layer_weights):
+        weight_num = 0
+        for h in range(len(self.hidden_layer.neurons)):
+            for i in range(self.num_inputs):
+                if not hidden_layer_weights:
+                    self.hidden_layer.neurons[h].weights.append(random.random())
+                else:
+                    self.hidden_layer.neurons[h].weights.append(hidden_layer_weights[weight_num])
+                weight_num += 1
 
-    def correcaoDoErroWSegundaCamada(self, doubleValorDeSaida, doubleG_primeiraCamada, doubleG_segundaCamada):
-        x = (-(doubleValorDeSaida - doubleG_segundaCamada[2]) * doubleG_segundaCamada[2] * (1 - doubleG_segundaCamada[3]) * doubleG_primeiraCamada)
-        return x
-    def calcularDerivadaErro_NET(self, doubleValorG_segundaCamada, doubleValorSaida):
-        return (doubleValorG_segundaCamada - doubleValorSaida) * (doubleValorG_segundaCamada * (1 - doubleValorG_segundaCamada))
+    def init_weights_from_hidden_layer_neurons_to_output_layer_neurons(self, output_layer_weights):
+        weight_num = 0
+        for o in range(len(self.output_layer.neurons)):
+            for h in range(len(self.hidden_layer.neurons)):
+                if not output_layer_weights:
+                    self.output_layer.neurons[o].weights.append(random.random())
+                else:
+                    self.output_layer.neurons[o].weights.append(output_layer_weights[weight_num])
+                weight_num += 1
 
-    def calculaB_derivadaGh_NETh(self, doubleValorG):
-        return doubleValorG * (1 - doubleValorG)
+    def inspect(self):
+        print('------')
+        print('* Inputs: {}'.format(self.num_inputs))
+        print('------')
+        print('Hidden Layer')
+        self.hidden_layer.inspect()
+        print('------')
+        print('* Output Layer')
+        self.output_layer.inspect()
+        print('------')
 
-    def calculaA_ErroTotal_g(self, doubleVetorPesos, doubleVetorG_segundaCamada, doubleVetorSaida):
-    #Calcula A1.1, A1.2, multiplica pelos pesos e faz a soma para o erro total""" Este for equivale a isso, veja o PDF da disciplina
-        # Calcula A1.1
-        doubleA1_1w1 = self.calcularDerivadaErro_NET(doubleVetorG_segundaCamada[0], doubleVetorSaida[0])
-        print ("doubleA1_1w1: ", doubleA1_1w1)
-        #Calcula A2.1
-        doubleA2_1_w1 = self.calcularDerivadaErro_NET(doubleVetorG_segundaCamada[1], doubleVetorSaida[1])
-        print ("doubleA2_1_w1: ", doubleA2_1_w1)
-         #Calcula A w1
-        doubleA_w1 = doubleA1_1w1 * self.doubleVetorDePesosSegundaCamada[0] + doubleA2_1_w1 * self.doubleVetorDePesosSegundaCamada[2]
-        print ("doubleAw1: ", doubleA_w1)
-        intTam = len(doubleVetorG_segundaCamada)
-        doubleErroTotal = np.double(0.0)
-        for i in range(intTam):
-            doubleErroTotal += self.calcularDerivadaErro_NET(doubleVetorG_segundaCamada[i], doubleVetorSaida[i]) * \
-                               doubleVetorPesos[i]
-        return doubleErroTotal
+    def feed_forward(self, inputs):
+        hidden_layer_outputs = self.hidden_layer.feed_forward(inputs)
+        return self.output_layer.feed_forward(hidden_layer_outputs)
 
-    def correcaoDoErroWPrimeiraCamada(self, doubleVetorEntradas, doubleVetorPesosSegundaCamada, doubleVetorSaida,doubleVetorG_primeiraCamada, doubleVetorG_segundaCamada):
-        #Calcula A w1 e w2
-        doubleA_w1_e_w2 = self.calculaA_ErroTotal_g(np.array([doubleVetorPesosSegundaCamada[0], doubleVetorPesosSegundaCamada[2]]),
-        doubleVetorG_segundaCamada, doubleVetorSaida)
-        print ("doubleA_w1_e_w2: ", doubleA_w1_e_w2)
-        #Calcula B w1 e w2
-        doubleB_w1_e_w2 = self.calculaB_derivadaGh_NETh(doubleVetorG_primeiraCamada[0])
-        print ("doubleBw1: ", doubleB_w1_e_w2)
-        #Calcula C_w1
-        doubleC_w1 = doubleVetorEntradas[0]
-        #Calcula ErroTotal_w1
-        erroTotal_w1 = doubleA_w1_e_w2 * doubleB_w1_e_w2 * doubleC_w1
-        print ("ErroTotal_w1: ", erroTotal_w1)
-        # Calcula C_w2
-        doubleC_w2 = doubleVetorEntradas[1]
-        # Calcula ErroTotal_w2
-        erroTotal_w2 = doubleA_w1_e_w2 * doubleB_w1_e_w2 * doubleC_w2
-        print ("ErroTotal_w2: ", erroTotal_w2)
-        doubleA_w3_e_w4 = self.calculaA_ErroTotal_g(np.array([doubleVetorPesosSegundaCamada[1], doubleVetorPesosSegundaCamada[3]]),
-        doubleVetorG_segundaCamada, doubleVetorSaida)
-        print ("doubleA_w3_e_w4: ", doubleA_w3_e_w4)
-        #Calcula B w3 e w4
-        doubleB_w3_e_w4 = self.calculaB_derivadaGh_NETh(doubleVetorG_primeiraCamada[1])
-        print ("doubleB_w3_e_w4: ", doubleB_w3_e_w4)
-        # Calcula C_w3
-        doubleC_w3 = doubleVetorEntradas[0]
-        # Calcula C_w4
-        doubleC_w4 = doubleVetorEntradas[1]
-        # Calcula ErroTotal_w3
-        erroTotal_w3 = doubleA_w3_e_w4 * doubleB_w3_e_w4 * doubleC_w3
-        print ("ErroTotal_w3: ", erroTotal_w3)
-        # Calcula ErroTotal_w4
-        erroTotal_w4 = doubleA_w3_e_w4 * doubleB_w3_e_w4 * doubleC_w4
-        print ("ErroTotal_w4: ", erroTotal_w4)
-        return erroTotal_w1, erroTotal_w2, erroTotal_w3, erroTotal_w4
+    # Uses online learning, ie updating the weights after each training case
+    def train(self, training_inputs, training_outputs):
+        self.feed_forward(training_inputs)
 
-    def atualizandoPesosDasCamadas(self, doubleVetorPesosOriginal, vetorErroTotalDosPesos, doubleTaxaDeAprendizagem):
-        intTamVetor = len(doubleVetorPesosOriginal)
-        for i in range(intTamVetor):
-            doubleVetorPesosOriginal = doubleVetorPesosOriginal - (doubleTaxaDeAprendizagem * vetorErroTotalDosPesos[i])
-        return doubleVetorPesosOriginal
+        # 1. Output neuron deltas
+        pd_errors_wrt_output_neuron_total_net_input = [0] * len(self.output_layer.neurons)
+        for o in range(len(self.output_layer.neurons)):
 
-    def execucaoAlgoritmo(self):
-        print ("Execução algoritmo...")
-        intEpocas = 1;
-        boolContinueRodando = True
-        vetorDeErros = []
-        vetorDeEpocas = []
-        while boolContinueRodando == True:
-            print ("======================= Epoca "), intEpocas, " ======================"
+            # ∂E/∂zⱼ
+            pd_errors_wrt_output_neuron_total_net_input[o] = self.output_layer.neurons[o].calculate_pd_error_wrt_total_net_input(training_outputs[o])
 
-            ########################### Neurônio da 1ª camada ###########################
-            print ("1ª camada...")
-            doubleNETh1, doubleNETh2, doubleGh1, doubleGh2 = self.neuronio(self.doubleVetorEntradas,self.doubleVetorDePesosPrimeiraCamada, self.doubleBiasPrimeiraCamada)
-            print ("doubleNETh1: ", doubleNETh1, " doubleNETh2: ")
+        # 2. Hidden neuron deltas
+        pd_errors_wrt_hidden_neuron_total_net_input = [0] * len(self.hidden_layer.neurons)
+        for h in range(len(self.hidden_layer.neurons)):
 
-            ########################### Neurônio da 2ª camada #######################
-            print ("2ª camada...")
+            # We need to calculate the derivative of the error with respect to the output of each hidden layer neuron
+            # dE/dyⱼ = Σ ∂E/∂zⱼ * ∂z/∂yⱼ = Σ ∂E/∂zⱼ * wᵢⱼ
+            d_error_wrt_hidden_neuron_output = 0
+            for o in range(len(self.output_layer.neurons)):
+                d_error_wrt_hidden_neuron_output += pd_errors_wrt_output_neuron_total_net_input[o] * self.output_layer.neurons[o].weights[h]
 
-            #Transformo o Gh1 e Gh2 nas minhas novas entradas
-            doubleVetorG_primeiraCamada_Gh1_Gh2 = np.array([doubleGh1, doubleGh2])
+            # ∂E/∂zⱼ = dE/dyⱼ * ∂zⱼ/∂
+            pd_errors_wrt_hidden_neuron_total_net_input[h] = d_error_wrt_hidden_neuron_output * self.hidden_layer.neurons[h].calculate_pd_total_net_input_wrt_input()
 
-            doubleNETo1 = self.neuronio(doubleVetorG_primeiraCamada_Gh1_Gh2, self.doubleVetorDePesosSegundaCamada, self.doubleBiasSegundaCamada)
+        # 3. Update output neuron weights
+        for o in range(len(self.output_layer.neurons)):
+            for w_ho in range(len(self.output_layer.neurons[o].weights)):
 
-            doubleNETo2 = self.neuronio(doubleVetorG_primeiraCamada_Gh1_Gh2,
-                                                                   self.doubleVetorDePesosSegundaCamada,
-                                                                   self.doubleBiasSegundaCamada)
-            doubleGo1 = self.neuronio(doubleVetorG_primeiraCamada_Gh1_Gh2,
-                                                               self.doubleVetorDePesosSegundaCamada,
-                                                               self.doubleBiasSegundaCamada)
-            doubleGo2 = self.neuronio(doubleVetorG_primeiraCamada_Gh1_Gh2,self.doubleVetorDePesosSegundaCamada,self.doubleBiasSegundaCamada)
-            print ('doubleNETo1:')
-           # print  doubleNETo1
-            print (" doubleNETo2: ")
-           # print doubleNETo2,
-            print  (" doubleGo2: ")
-           # print doubleGo2
-            doubleVetorG_segundaCamada_Go1_Go2 = np.array([doubleGo1, doubleGo2])
+                # ∂Eⱼ/∂wᵢⱼ = ∂E/∂zⱼ * ∂zⱼ/∂wᵢⱼ
+                pd_error_wrt_weight = pd_errors_wrt_output_neuron_total_net_input[o] * self.output_layer.neurons[o].calculate_pd_total_net_input_wrt_weight(w_ho)
 
+                # Δw = α * ∂Eⱼ/∂wᵢ
+                self.output_layer.neurons[o].weights[w_ho] -= self.LEARNING_RATE * pd_error_wrt_weight
 
-            ### # Calculando o erro Total
-            #ARRUMAR... colocar o vetor de G da segunda camada
-            doubleErroTotal = self.calculandoErroTotal(doubleGo1, doubleGo2, self.doubleVetorSaida)
-            print ("doubleErroTotal: ", doubleErroTotal)
-            ## Correção do erro da segunda camada
-            #ARRUMAR... colocar isso tudo em uma função, trocar o doubleGh1 e doubleGo1 por vetores e variar eles no laço
-            doubleDerivadaErroTotal_w5 = self.correcaoDoErroWSegundaCamada(self.doubleVetorSaida[0], doubleGh1, doubleGo1)
-            print ("doubleDerivadaErroTotal_w5: ", doubleDerivadaErroTotal_w5)
-            doubleDerivadaErroTotal_w6 = self.correcaoDoErroWSegundaCamada(self.doubleVetorSaida[0], doubleGh2, doubleGo1)
-            print ("doubleDerivadaErroTotal_w6: ", doubleDerivadaErroTotal_w6)
-            doubleDerivadaErroTotal_w7 = self.correcaoDoErroWSegundaCamada(self.doubleVetorSaida[1], doubleGh1, doubleGo2)
-            print ("doubleDerivadaErroTotal_w7: ", doubleDerivadaErroTotal_w7)
-            doubleDerivadaErroTotal_w8 = self.correcaoDoErroWSegundaCamada(self.doubleVetorSaida[1], doubleGh2, doubleGo2)
-            print ("doubleDerivadaErroTotal_w8: ", doubleDerivadaErroTotal_w8)
+        # 4. Update hidden neuron weights
+        for h in range(len(self.hidden_layer.neurons)):
+            for w_ih in range(len(self.hidden_layer.neurons[h].weights)):
 
+                # ∂Eⱼ/∂wᵢ = ∂E/∂zⱼ * ∂zⱼ/∂wᵢ
+                pd_error_wrt_weight = pd_errors_wrt_hidden_neuron_total_net_input[h] * self.hidden_layer.neurons[h].calculate_pd_total_net_input_wrt_weight(w_ih)
 
-            ######### Correção do erro da primeira camada ##########
-            doubleErroTotal_w1, doubleErroTotal_w2, doubleErroTotal_w3, doubleErroTotal_w4 = self.correcaoDoErroWPrimeiraCamada(self.doubleVetorEntradas, self.doubleVetorDePesosSegundaCamada, self.doubleVetorSaida, doubleVetorG_primeiraCamada_Gh1_Gh2, doubleVetorG_segundaCamada_Go1_Go2)
-            print ("doubleErroTotal_w1: ", doubleErroTotal_w1)
-            print (" doubleErroTotal_w2: ", doubleErroTotal_w2)
-            print (" doubleErroTotal_w3: ",doubleErroTotal_w3)
-            print (" doubleErroTotal_w4: ", doubleErroTotal_w4)
+                # Δw = α * ∂Eⱼ/∂wᵢ
+                self.hidden_layer.neurons[h].weights[w_ih] -= self.LEARNING_RATE * pd_error_wrt_weight
 
+    def calculate_total_error(self, training_sets):
+        total_error = 0
+        for t in range(len(training_sets)):
+            training_inputs, training_outputs = training_sets[t]
+            self.feed_forward(training_inputs)
+            for o in range(len(training_outputs)):
+                total_error += self.output_layer.neurons[o].calculate_error(training_outputs[o])
+        return total_error
 
-            ############# Atualização dos pesos ###############
-            doubleVetorErroTotalPrimeiraCamada = np.array([doubleErroTotal_w1, doubleErroTotal_w2, doubleErroTotal_w3,doubleErroTotal_w4])
-            doubleVetorErroTotalSegundaCamada = np.array([doubleDerivadaErroTotal_w5, doubleDerivadaErroTotal_w6,doubleDerivadaErroTotal_w7, doubleDerivadaErroTotal_w8])
-            print ("doubleVetorErroTotalPrimeiraCamada: ", doubleVetorErroTotalPrimeiraCamada)
-            print ("doubleVetorErroTotalSegundaCamada: ", doubleVetorErroTotalSegundaCamada)
+class NeuronLayer:
+    def __init__(self, num_neurons, bias):
 
+        # Every neuron in a layer shares the same bias
+        self.bias = bias if bias else random.random()
 
-            ## Atualizando primeira camada
-            self.doubleVetorDePesosPrimeiraCamada = self.atualizandoPesosDasCamadas(self.doubleVetorDePesosPrimeiraCamada,doubleVetorErroTotalPrimeiraCamada, self.doubleTaxaDeAprendizagem)
-            print ("doubleVetorDePesosPrimeiraCamada t+1: ", self.doubleVetorDePesosPrimeiraCamada)
+        self.neurons = []
+        for i in range(num_neurons):
+            self.neurons.append(Neuron(self.bias))
 
-            ## Atualizando segunda camada
-            self.doubleVetorDePesosSegundaCamada = self.atualizandoPesosDasCamadas(self.doubleVetorDePesosSegundaCamada,doubleVetorErroTotalSegundaCamada, self.doubleTaxaDeAprendizagem)
-            print ("doubleVetorDePesosSegundaCamada t+1: ", self.doubleVetorDePesosSegundaCamada)
-            print ("doubleErroTotal: ", doubleErroTotal)
+    def inspect(self):
+        print('Neurons:', len(self.neurons))
+        for n in range(len(self.neurons)):
+            print(' Neuron', n)
+            for w in range(len(self.neurons[n].weights)):
+                print('  Weight:', self.neurons[n].weights[w])
+            print('  Bias:', self.bias)
 
-            ## Informações para criar o gráfico ##
-            vetorDeErros.append(doubleErroTotal)
-            vetorDeEpocas.append(intEpocas)
-            if max(doubleErroTotal) < self.doublePrecisaoRequerida or self.intNumerosDeIteracao <= intEpocas:
-                boolContinueRodando = False
-            intEpocas = intEpocas + 1
+    def feed_forward(self, inputs):
+        outputs = []
+        for neuron in self.neurons:
+            outputs.append(neuron.calculate_output(inputs))
+        return outputs
 
-        if self.boolMostrarGraficos == True:
-            m = ManipulandoGraficos()
-            m.criandoGraficoComDuasRetas(vetorDeEpocas, vetorDeErros, "Epocas", "Erro")
+    def get_outputs(self):
+        outputs = []
+        for neuron in self.neurons:
+            outputs.append(neuron.output)
+        return outputs
 
+class Neuron:
+    def __init__(self, bias):
+        self.bias = bias
+        self.weights = []
+
+    def calculate_output(self, inputs):
+        self.inputs = inputs
+        self.output = self.squash(self.calculate_total_net_input())
+        return self.output
+
+    def calculate_total_net_input(self):
+        total = 0
+        for i in range(len(self.inputs)):
+            total += self.inputs[i] * self.weights[i]
+        return total + self.bias
+
+    # Apply the logistic function to squash the output of the neuron
+    # The result is sometimes referred to as 'net' [2] or 'net' [1]
+    def squash(self, total_net_input):
+        return 1 / (1 + math.exp(-total_net_input))
+
+    # Determine how much the neuron's total input has to change to move closer to the expected output
+    #
+    # Now that we have the partial derivative of the error with respect to the output (∂E/∂yⱼ) and
+    # the derivative of the output with respect to the total net input (dyⱼ/dzⱼ) we can calculate
+    # the partial derivative of the error with respect to the total net input.
+    # This value is also known as the delta (δ) [1]
+    # δ = ∂E/∂zⱼ = ∂E/∂yⱼ * dyⱼ/dzⱼ
+    #
+    def calculate_pd_error_wrt_total_net_input(self, target_output):
+        return self.calculate_pd_error_wrt_output(target_output) * self.calculate_pd_total_net_input_wrt_input();
+
+    # The error for each neuron is calculated by the Mean Square Error method:
+    def calculate_error(self, target_output):
+        return 0.5 * (target_output - self.output) ** 2
+
+    # The partial derivate of the error with respect to actual output then is calculated by:
+    # = 2 * 0.5 * (target output - actual output) ^ (2 - 1) * -1
+    # = -(target output - actual output)
+    #
+    # The Wikipedia article on backpropagation [1] simplifies to the following, but most other learning material does not [2]
+    # = actual output - target output
+    #
+    # Alternative, you can use (target - output), but then need to add it during backpropagation [3]
+    #
+    # Note that the actual output of the output neuron is often written as yⱼ and target output as tⱼ so:
+    # = ∂E/∂yⱼ = -(tⱼ - yⱼ)
+    def calculate_pd_error_wrt_output(self, target_output):
+        return -(target_output - self.output)
+
+    # The total net input into the neuron is squashed using logistic function to calculate the neuron's output:
+    # yⱼ = φ = 1 / (1 + e^(-zⱼ))
+    # Note that where ⱼ represents the output of the neurons in whatever layer we're looking at and ᵢ represents the layer below it
+    #
+    # The derivative (not partial derivative since there is only one variable) of the output then is:
+    # dyⱼ/dzⱼ = yⱼ * (1 - yⱼ)
+    def calculate_pd_total_net_input_wrt_input(self):
+        return self.output * (1 - self.output)
+
+    # The total net input is the weighted sum of all the inputs to the neuron and their respective weights:
+    # = zⱼ = netⱼ = x₁w₁ + x₂w₂ ...
+    #
+    # The partial derivative of the total net input with respective to a given weight (with everything else held constant) then is:
+    # = ∂zⱼ/∂wᵢ = some constant + 1 * xᵢw₁^(1-0) + some constant ... = xᵢ
+    def calculate_pd_total_net_input_wrt_weight(self, index):
+        return self.inputs[index]
+
+###
+
+# Blog post example:
+
+plot.title("Grafico do Erro Total em 1000 Geralções")
+nn = NeuralNetwork(2, 2, 2, hidden_layer_weights=[0.15, 0.2, 0.25, 0.3], hidden_layer_bias=0.35, output_layer_weights=[0.4, 0.45, 0.5, 0.55], output_layer_bias=0.6)
+X_ = []
+Y_ = []
+for i in range(1000):
+    nn.train([0.05, 0.1], [0.01, 0.99])
+    print(i, round(nn.calculate_total_error([[[0.05, 0.1], [0.01, 0.99]]]), 9))
+    X_.append(i)
+    Y_.append(nn.calculate_total_error([[[0.05, 0.1], [0.01, 0.99]]]))
+
+plot.plot(X_, Y_)
+plot.show()
+# XOR example:
+
+# training_sets = [
+#     [[0, 0], [0]],
+#     [[0, 1], [1]],
+#     [[1, 0], [1]],
+#     [[1, 1], [0]]
+# ]
+
+# nn = NeuralNetwork(len(training_sets[0][0]), 5, len(training_sets[0][1]))
+# for i in range(10000):
+#     training_inputs, training_outputs = random.choice(training_sets)
+#     nn.train(training_inputs, training_outputs)
+#     print(i, nn.calculate_total_error(training_sets))
